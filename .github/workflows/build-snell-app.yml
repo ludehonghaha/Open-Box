@@ -41,6 +41,10 @@ jobs:
             /tmp/openbox-app/panel/server/engine/smart-routing-preset.mjs
           cp patches/v0.1.280/openbox-smart-preset.test.mjs \
             /tmp/openbox-app/panel/server/engine/openbox-smart-preset.test.mjs
+          cp patches/v0.1.280/smart-routing-api.mjs \
+            /tmp/openbox-app/panel/server/api/smart-routing.mjs
+          cp patches/v0.1.280/smart-routing-api.test.mjs \
+            /tmp/openbox-app/panel/server/api/smart-routing.test.mjs
 
       - name: Run backend regression and Snell tests
         shell: bash
@@ -57,7 +61,8 @@ jobs:
             engine/chain-proxy.test.mjs \
             engine/openbox-snell.test.mjs \
             engine/openbox-personal-topology.test.mjs \
-            engine/openbox-smart-preset.test.mjs
+            engine/openbox-smart-preset.test.mjs \
+            api/smart-routing.test.mjs
 
       - name: Validate emitted Snell outbound with sing-box 1.14.1
         shell: bash
