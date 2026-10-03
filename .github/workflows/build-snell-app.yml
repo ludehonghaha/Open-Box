@@ -60,6 +60,24 @@ jobs:
           open(p,'a').write('\n')
           PY
 
+      - name: Validate smart routing static UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'openbox-smart-routing-entry' /tmp/openbox-app/panel/dist/index.html
+          grep -Fq 'id="snell-add"' /tmp/openbox-app/panel/dist/smart-routing.html
+          grep -Fq '/api/openbox/subscriptions' /tmp/openbox-app/panel/dist/smart-routing.html
+          python3 - <<'PY'
+          import re
+          p='/tmp/openbox-app/panel/dist/smart-routing.html'
+          s=open(p).read()
+          scripts=re.findall(r'<script>(.*?)</script>', s, re.S)
+          if len(scripts) != 1:
+              raise SystemExit(f'expected one inline script, got {len(scripts)}')
+          open('/tmp/smart-routing-ui.js','w').write(scripts[0])
+          PY
+          node --check /tmp/smart-routing-ui.js
+
       - name: Run backend regression and Snell tests
         shell: bash
         working-directory: /tmp/openbox-app/panel/server
