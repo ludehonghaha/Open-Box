@@ -47,6 +47,14 @@ jobs:
             echo
             echo "=== server/framework strings ==="
             grep -RInaE --binary-files=without-match 'express|fastify|koa|sqlite|better-sqlite|drizzle|prisma|react|vue|next|vite|zashboard' /tmp/openbox-app 2>/dev/null | head -300 || true
+            echo
+            echo "=== license/copyright files ==="
+            find /tmp/openbox-app -type f \( -iname 'license*' -o -iname 'copying*' -o -iname 'copyright*' -o -iname 'notice*' \) -print | sort || true
+            echo
+            for p in /tmp/openbox-app/panel/server/engine/node-model.mjs /tmp/openbox-app/panel/server/engine/emit-outbound.mjs /tmp/openbox-app/panel/server/engine/chain-proxy.mjs /tmp/openbox-app/panel/server/engine/routing.mjs /tmp/openbox-app/meta.json; do
+              echo "=== FILE: $p ==="
+              sed -n '1,260p' "$p" 2>/dev/null || true
+            done
           } > "$out"
           cat "$out"
 
