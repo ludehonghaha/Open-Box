@@ -1,0 +1,155 @@
+name: Release smartalpha1 ARM64
+
+on:
+  push:
+    branches:
+      - feature/smart-chain-routing
+    paths:
+      - .github/workflows/release-smartalpha1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TAG: v0.1.280-smartalpha1
+  UPSTREAM_TAG: v0.1.280
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download upstream ARM64 app and full package
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/liandu2024/Open-Box/releases/download/${UPSTREAM_TAG}"
+          curl -fL --retry 3 -o /tmp/openbox-app.tar.gz "$base/open-box-${UPSTREAM_TAG}-linux-arm64-app.tar.gz"
+          curl -fL --retry 3 -o /tmp/openbox-full.tar.gz "$base/open-box-${UPSTREAM_TAG}-linux-arm64.tar.gz"
+          mkdir -p /tmp/openbox-app /tmp/openbox-full
+          tar -xzf /tmp/openbox-app.tar.gz -C /tmp/openbox-app
+          tar -xzf /tmp/openbox-full.tar.gz -C /tmp/openbox-full
+
+      - name: Patch app and add smart routing UI/API
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 patches/v0.1.280/apply_snell_patch.py /tmp/openbox-app
+          cp patches/v0.1.280/openbox-snell.test.mjs /tmp/openbox-app/panel/server/engine/openbox-snell.test.mjs
+          cp patches/v0.1.280/openbox-personal-topology.test.mjs /tmp/openbox-app/panel/server/engine/openbox-personal-topology.test.mjs
+          cp patches/v0.1.280/smart-routing-preset.mjs /tmp/openbox-app/panel/server/engine/smart-routing-preset.mjs
+          cp patches/v0.1.280/openbox-smart-preset.test.mjs /tmp/openbox-app/panel/server/engine/openbox-smart-preset.test.mjs
+          cp patches/v0.1.280/smart-routing-api.mjs /tmp/openbox-app/panel/server/api/smart-routing.mjs
+          cp patches/v0.1.280/smart-routing-api.test.mjs /tmp/openbox-app/panel/server/api/smart-routing.test.mjs
+          cp patches/v0.1.280/smart-routing.html /tmp/openbox-app/panel/dist/smart-routing.html
+          cp scripts/update.sh /tmp/openbox-app/update.sh
+          cp scripts/uninstall.sh /tmp/openbox-app/uninstall.sh
+          sed -i 's#OPENBOX_RELEASE_REPO:-liandu2024/Open-Box#OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box#' /tmp/openbox-app/update.sh
+          python3 - <<'PY'
+          import json
+          p='/tmp/openbox-app/meta.json'
+          data=json.load(open(p))
+          data['version']='v0.1.280-smartalpha1'
+          json.dump(data, open(p,'w'), ensure_ascii=False, indent=2)
+          open(p,'a').write('\n')
+          PY
+          printf '%s\n'             'base=v0.1.280'             'patch=smart-routing-alpha1'             'singbox-v5-client-mapping=v4'             > /tmp/openbox-app/OPENBOX_CUSTOM_BUILD
+
+      - name: Run backend regression and smart routing tests
+        shell: bash
+        working-directory: /tmp/openbox-app/panel/server
+        run: |
+          set -euo pipefail
+          node --test             engine/node-model.test.mjs             engine/emit-outbound.test.mjs             engine/sharelink.test.mjs             engine/subscription.test.mjs             engine/clash.test.mjs             engine/singbox-in.test.mjs             engine/chain-proxy.test.mjs             engine/openbox-snell.test.mjs             engine/openbox-personal-topology.test.mjs             engine/openbox-smart-preset.test.mjs             api/smart-routing.test.mjs
+
+      - name: Validate Snell config with sing-box 1.14.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/openbox-app/panel/server
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import { parseSurgeSnellLine } from './engine/sharelink.mjs'
+          import { emitOutbound } from './engine/emit-outbound.mjs'
+          const node = parseSurgeSnellLine('NB = snell, 203.0.113.10, 4904, psk = smoke-secret, version = 5')
+          const outbound = emitOutbound(node)
+          if (outbound.version !== 4) throw new Error('Snell v5 compatibility mapping did not emit version 4')
+          fs.writeFileSync('/tmp/snell-smoke.json', JSON.stringify({ outbounds: [outbound] }, null, 2))
+          NODE
+          curl -fL --retry 3 -o /tmp/sing-box.tar.gz             https://github.com/SagerNet/sing-box/releases/download/v1.14.1/sing-box-1.14.1-linux-amd64.tar.gz
+          mkdir -p /tmp/singbox
+          tar -xzf /tmp/sing-box.tar.gz -C /tmp/singbox --strip-components=1
+          /tmp/singbox/sing-box check -c /tmp/snell-smoke.json
+
+      - name: Overlay patched app onto official full ARM64 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a /tmp/openbox-app/. /tmp/openbox-full/
+          test -f /tmp/openbox-full/meta.json
+          test -f /tmp/openbox-full/panel/server/index.mjs
+          test -f /tmp/openbox-full/panel/dist/smart-routing.html
+          test -f /tmp/openbox-full/update.sh
+          test -x /tmp/openbox-full/node/bin/node
+          test -d /tmp/openbox-full/openwrt
+          grep -q 'v0.1.280-smartalpha1' /tmp/openbox-full/meta.json
+          grep -q 'ludehonghaha/Open-Box' /tmp/openbox-full/update.sh
+
+      - name: Build release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          full="open-box-${TAG}-linux-arm64.tar.gz"
+          app="open-box-${TAG}-linux-arm64-app.tar.gz"
+          tar -czf "release/$full" -C /tmp/openbox-full .
+          tar -czf "release/$app" -C /tmp/openbox-app .
+          (cd release && sha256sum "$full" > "$full.sha256")
+          (cd release && sha256sum "$app" > "$app.sha256")
+          cp scripts/install.sh release/install.sh
+          python3 - <<'PY'
+          p='release/install.sh'
+          s=open(p).read()
+          old='REPO="${OPENBOX_RELEASE_REPO:-liandu2024/Open-Box}"'
+          new='REPO="${OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box}"\nOPENBOX_INSTALL_VERSION="${OPENBOX_INSTALL_VERSION:-v0.1.280-smartalpha1}"'
+          if s.count(old) != 1:
+              raise SystemExit('install.sh repo anchor mismatch')
+          open(p,'w').write(s.replace(old,new,1))
+          PY
+          chmod +x release/install.sh
+          cat > release/release-notes.md <<'EOF'
+          Open-Box Smart Routing alpha1 (ARM64 / N1 test build)
+
+          Base: upstream v0.1.280
+          Core: sing-box 1.14.1-openbox-tcp15
+
+          Added:
+          - Snell import/save/outbound support
+          - Surge Snell v5 line import; v5 source maps to sing-box v4 client
+          - Snell first hop -> JP landing real detour chain
+          - JP failover lanes: Snell->JP, Gen2->JP, HK fallback
+          - AI/foreign web -> JP smart route
+          - streaming -> US West
+          - China -> DIRECT
+          - /api/openbox/smart-routing/options|preview|apply
+          - /smart-routing.html standalone dark UI
+
+          This is a prerelease for N1 validation. Do not use automatic update during alpha testing.
+          EOF
+          ls -lh release
+          sha256sum release/*.tar.gz
+
+      - name: Publish prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+            gh release edit "$TAG" --title "Open-Box Smart Routing alpha1" --notes-file release/release-notes.md --prerelease
+          else
+            gh release create "$TAG"               --target "$GITHUB_SHA"               --title "Open-Box Smart Routing alpha1"               --notes-file release/release-notes.md               --prerelease               release/*
+          fi
