@@ -54,7 +54,10 @@ set -eu
 # uhttpd / rpcd 读到,LuCI 的 status.js 曾因此变成 600 而 403(GitHub #103 #106 #110)
 umask 022
 
-# Release 资产默认继续使用上游仓库；定制构建可通过环境变量切换到自己的 Release。\nREPO="${OPENBOX_RELEASE_REPO:-liandu2024/Open-Box}"\n# 报错提示中的安装脚本来源默认跟随 Release 仓库，也可以单独覆盖。\nSCRIPT_REPO="${OPENBOX_SCRIPT_REPO:-$REPO}"
+# Release 资产默认继续使用上游仓库；定制构建可通过环境变量切换到自己的 Release。
+REPO="${OPENBOX_RELEASE_REPO:-liandu2024/Open-Box}"
+# 报错提示中的安装脚本来源默认跟随 Release 仓库，也可以单独覆盖。
+SCRIPT_REPO="${OPENBOX_SCRIPT_REPO:-$REPO}"
 INSTALL_ROOT="/opt/open-box"
 # /tmp 是 tmpfs，升级包当前约 106MB；在内核和面板运行时把它下载到 /tmp
 # 会额外消耗同等大小的运行内存，512MB 设备可能被 OOM killer 杀掉。默认改用
