@@ -1,7 +1,7 @@
 import express from 'express'
 import { buildConfig } from '../engine/config.mjs'
 import { chainNodes, parseChainNode } from '../engine/chain-proxy.mjs'
-import { buildSmartRoutingPreset } from '../engine/smart-routing-preset.mjs'
+import { buildSmartRoutingPreset, SMART_ROUTING_PRESET_IDS } from '../engine/smart-routing-preset.mjs'
 import { appliedSummary } from './subscriptions.mjs'
 
 const clean = (v) => (typeof v === 'string' ? v.trim() : '')
@@ -21,7 +21,9 @@ export const planSmartRouting = ({ store, input = {} }) => {
   const secondaryHop = clean(input.secondaryHop)
   const hkFallback = clean(input.hkFallback)
   const usWestNodes = list(input.usWestNodes)
-  const jpLandingLink = clean(input.jpLandingLink)
+  const requestedLandingLink = clean(input.jpLandingLink)
+  const existingPrimaryChain = (Array.isArray(profile.chainProxies) ? profile.chainProxies : []).find((x) => x && x.id === SMART_ROUTING_PRESET_IDS.primaryChain)
+  const jpLandingLink = requestedLandingLink || clean(existingPrimaryChain?.link)
 
   if (!nodeTags.has(primaryHop)) throw new Error(`沪日主入口不存在:「${primaryHop || '未选择'}」`)
   if (nodeByTag.get(primaryHop)?.type !== 'snell') throw new Error(`沪日主入口必须是 Snell 节点:「${primaryHop}」`)
@@ -73,11 +75,41 @@ export const planSmartRouting = ({ store, input = {} }) => {
   }
 }
 
+export const smartRoutingOptions = (store) => {
+  const profile = store.getProfile() || {}
+  const groups = store.getGroups() || []
+  const nodes = [...(store.getNodes() || []), ...chainNodes(profile)]
+  const byId = new Map((Array.isArray(profile.chainProxies) ? profile.chainProxies : []).map((x) => [x && x.id, x]))
+  const primary = byId.get(SMART_ROUTING_PRESET_IDS.primaryChain)
+  const secondary = byId.get(SMART_ROUTING_PRESET_IDS.secondaryChain)
+  const groupById = new Map(groups.map((g) => [g && g.id, g]))
+  const jpGroup = groupById.get(SMART_ROUTING_PRESET_IDS.jpGroup)
+  const usGroup = groupById.get(SMART_ROUTING_PRESET_IDS.usGroup)
+  const hkGroup = groupById.get(SMART_ROUTING_PRESET_IDS.hkGroup)
+  const lane = (id) => (Array.isArray(jpGroup?.lanes) ? jpGroup.lanes.find((x) => x && x.id === id) : null)
+  return {
+    nodes: nodes.map((n) => ({ name: n.tag, type: n.type, chain: n.chain === true })),
+    snellNodes: nodes.filter((n) => n.type === 'snell' && n.chain !== true).map((n) => n.tag),
+    upstreams: [...new Set([...nodes.map((n) => n.tag), ...groups.map((g) => g && g.name).filter(Boolean)])],
+    current: {
+      primaryHop: clean(primary?.upstream),
+      secondaryHop: clean(secondary?.upstream),
+      hkFallback: clean((lane('last')?.members || [])[0] || (hkGroup?.members || [])[0]),
+      usWestNodes: list(usGroup?.members),
+      jpLandingConfigured: Boolean(clean(primary?.link)),
+    },
+  }
+}
+
 const publicResult = (plan) => ({ summary: plan.summary, preview: plan.preview })
 
 export const registerSmartRoutingRoutes = (app, { store, applyNow = null } = {}) => {
   const router = express.Router({ caseSensitive: true })
   router.use(express.json({ limit: '1mb' }))
+
+  router.get('/options', (_req, res) => {
+    res.json({ ok: true, ...smartRoutingOptions(store) })
+  })
 
   router.post('/preview', (req, res) => {
     try { res.json({ ok: true, ...publicResult(planSmartRouting({ store, input: req.body || {} })) }) }
