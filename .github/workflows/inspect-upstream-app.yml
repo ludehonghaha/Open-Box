@@ -1,0 +1,57 @@
+name: Inspect upstream app package
+
+on:
+  push:
+    branches:
+      - feature/smart-chain-routing
+    paths:
+      - .github/workflows/inspect-upstream-app.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download upstream Open-Box app
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/liandu2024/Open-Box/releases/download/v0.1.280/open-box-v0.1.280-linux-arm64-app.tar.gz"
+          curl -fL --retry 3 -o /tmp/openbox-app.tar.gz "$url"
+          mkdir -p /tmp/openbox-app
+          tar -xzf /tmp/openbox-app.tar.gz -C /tmp/openbox-app
+
+      - name: Build inspection report
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/upstream-app-report.txt"
+          {
+            echo "=== top-level tree ==="
+            find /tmp/openbox-app -maxdepth 4 -type f -printf '%p\t%k KB\n' | sort | head -400
+            echo
+            echo "=== file types ==="
+            find /tmp/openbox-app -type f -print0 | xargs -0 file | head -400
+            echo
+            echo "=== largest files ==="
+            du -ah /tmp/openbox-app | sort -h | tail -100
+            echo
+            echo "=== candidate source/config files ==="
+            find /tmp/openbox-app -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' -o -name '*.json' -o -name '*.html' -o -name '*.css' -o -name '*.ts' -o -name '*.tsx' \) | sort | head -600
+            echo
+            echo "=== protocol/routing strings ==="
+            grep -RInaE --binary-files=without-match 'snell|anytls|hysteria2|detour|dialer|chain|route|rule_set|rule-set|outbound|selector|urltest' /tmp/openbox-app 2>/dev/null | head -500 || true
+            echo
+            echo "=== server/framework strings ==="
+            grep -RInaE --binary-files=without-match 'express|fastify|koa|sqlite|better-sqlite|drizzle|prisma|react|vue|next|vite|zashboard' /tmp/openbox-app 2>/dev/null | head -300 || true
+          } > "$out"
+          cat "$out"
+
+      - name: Upload inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-app-report
+          path: upstream-app-report.txt
