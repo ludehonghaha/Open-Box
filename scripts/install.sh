@@ -26,7 +26,11 @@ set -eu
 # uhttpd / rpcd 读到,LuCI 的 status.js 曾因此变成 600 而 403(GitHub #103 #106 #110)
 umask 022
 
-# Release 资产默认继续使用上游仓库；定制构建可在不改脚本的情况下切换到自己的 Release。\n# 例如：OPENBOX_RELEASE_REPO=owner/Open-Box sh install.sh\nREPO="${OPENBOX_RELEASE_REPO:-liandu2024/Open-Box}"\n# 报错提示中的 install/update 脚本来源默认跟随 Release 仓库，也可以单独覆盖。\nSCRIPT_REPO="${OPENBOX_SCRIPT_REPO:-$REPO}"
+# Release 资产默认继续使用上游仓库；定制构建可在不改脚本的情况下切换到自己的 Release。
+# 例如：OPENBOX_RELEASE_REPO=owner/Open-Box sh install.sh
+REPO="${OPENBOX_RELEASE_REPO:-liandu2024/Open-Box}"
+# 报错提示中的 install/update 脚本来源默认跟随 Release 仓库，也可以单独覆盖。
+SCRIPT_REPO="${OPENBOX_SCRIPT_REPO:-$REPO}"
 INSTALL_ROOT="/opt/open-box"
 # OpenWrt 的 /tmp 通常是 tmpfs，会把下载包直接计入运行内存。完整安装包约
 # 106MB，低内存路由器在面板/内核已经运行时下载它可能触发 OOM，表现为“死机”。
