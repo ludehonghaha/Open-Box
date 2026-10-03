@@ -45,6 +45,8 @@ jobs:
             /tmp/openbox-app/panel/server/api/smart-routing.mjs
           cp patches/v0.1.280/smart-routing-api.test.mjs \
             /tmp/openbox-app/panel/server/api/smart-routing.test.mjs
+          cp patches/v0.1.280/smart-routing.html \
+            /tmp/openbox-app/panel/dist/smart-routing.html
 
       - name: Run backend regression and Snell tests
         shell: bash
@@ -92,15 +94,15 @@ jobs:
           set -euo pipefail
           printf '%s\n' \
             'base=v0.1.280' \
-            'patch=snell-t1' \
+            'patch=smart-routing-alpha1' \
             'singbox-v5-client-mapping=v4' \
             > /tmp/openbox-app/OPENBOX_CUSTOM_BUILD
-          tar -czf "$GITHUB_WORKSPACE/open-box-v0.1.280-snellt1-linux-arm64-app.tar.gz" \
+          tar -czf "$GITHUB_WORKSPACE/open-box-v0.1.280-smartalpha1-linux-arm64-app.tar.gz" \
             -C /tmp/openbox-app .
 
       - name: Upload patched app
         uses: actions/upload-artifact@v4
         with:
-          name: open-box-v0.1.280-snellt1-linux-arm64-app
-          path: open-box-v0.1.280-snellt1-linux-arm64-app.tar.gz
+          name: open-box-v0.1.280-smartalpha1-linux-arm64-app
+          path: open-box-v0.1.280-smartalpha1-linux-arm64-app.tar.gz
           if-no-files-found: error
