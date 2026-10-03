@@ -51,7 +51,7 @@ jobs:
             echo "=== license/copyright files ==="
             find /tmp/openbox-app -type f \( -iname 'license*' -o -iname 'copying*' -o -iname 'copyright*' -o -iname 'notice*' \) -print | sort || true
             echo
-            for p in /tmp/openbox-app/panel/server/engine/node-model.mjs /tmp/openbox-app/panel/server/engine/emit-outbound.mjs /tmp/openbox-app/panel/server/engine/chain-proxy.mjs /tmp/openbox-app/panel/server/engine/routing.mjs /tmp/openbox-app/meta.json; do
+            for p in /tmp/openbox-app/panel/server/engine/node-model.mjs /tmp/openbox-app/panel/server/engine/emit-outbound.mjs /tmp/openbox-app/panel/server/engine/chain-proxy.mjs /tmp/openbox-app/panel/server/engine/routing.mjs /tmp/openbox-app/panel/server/engine/sharelink.mjs /tmp/openbox-app/panel/server/engine/subscription.mjs /tmp/openbox-app/panel/server/engine/node-fields.mjs /tmp/openbox-app/panel/server/package.json /tmp/openbox-app/meta.json; do
               echo "=== FILE: $p ==="
               sed -n '1,260p' "$p" 2>/dev/null || true
             done
