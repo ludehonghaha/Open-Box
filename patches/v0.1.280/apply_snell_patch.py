@@ -221,6 +221,12 @@ def patch_index(s):
         'smart routing api registration',
     )
 
+def patch_frontend_index(s):
+    button = """    <a id="openbox-smart-routing-entry" href="/smart-routing.html" title="智能线路"
+      style="position:fixed;right:18px;bottom:18px;z-index:9999;text-decoration:none;background:#111827;color:#f3f4f6;border:1px solid #374151;border-radius:12px;padding:10px 14px;font:600 13px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28)">智能线路</a>
+"""
+    return replace_once(s, "  </body>\n</html>\n", button + "  </body>\n</html>\n", 'smart routing frontend entry')
+
 def patch_clash_test(s):
     old = """  - name: "Legacy"
     type: snell
@@ -255,5 +261,6 @@ for name, fn in [
     edit(name, fn)
 
 edit_path('panel/server/index.mjs', patch_index)
+edit_path('panel/dist/index.html', patch_frontend_index)
 
 print('Snell + smart routing patch applied')
