@@ -13,6 +13,14 @@ def edit(name, fn):
         raise SystemExit(f'patch produced no change: {name}')
     p.write_text(out)
 
+def edit_path(rel, fn):
+    p = root / rel
+    s = p.read_text()
+    out = fn(s)
+    if out == s:
+        raise SystemExit(f'patch produced no change: {rel}')
+    p.write_text(out)
+
 def replace_once(s, old, new, label):
     n = s.count(old)
     if n != 1:
@@ -199,6 +207,20 @@ def patch_node_model_test(s):
     new = "  assert.deepEqual([...NODE_TYPES].sort(), ['anytls','http','hysteria2','shadowsocks','snell','socks','trojan','tuic','vless','vmess','wireguard'])"
     return replace_once(s, old, new, 'node model test expectation')
 
+def patch_index(s):
+    s = replace_once(
+        s,
+        "import { registerProfileRoutes } from './api/profile.mjs'\n",
+        "import { registerProfileRoutes } from './api/profile.mjs'\nimport { registerSmartRoutingRoutes } from './api/smart-routing.mjs'\n",
+        'smart routing api import',
+    )
+    return replace_once(
+        s,
+        "registerProfileRoutes(app, { store, applyNow: () => hotApplier.runNow() })\n",
+        "registerProfileRoutes(app, { store, applyNow: () => hotApplier.runNow() })\nregisterSmartRoutingRoutes(app, { store, applyNow: () => hotApplier.runNow() })\n",
+        'smart routing api registration',
+    )
+
 def patch_clash_test(s):
     old = """  - name: "Legacy"
     type: snell
@@ -232,4 +254,6 @@ for name, fn in [
 ]:
     edit(name, fn)
 
-print('Snell patch applied')
+edit_path('panel/server/index.mjs', patch_index)
+
+print('Snell + smart routing patch applied')
