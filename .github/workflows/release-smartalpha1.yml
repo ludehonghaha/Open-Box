@@ -10,6 +10,7 @@ on:
       - scripts/install.sh
       - scripts/update.sh
       - scripts/uninstall.sh
+      - scripts/smartalpha1-doctor.sh
   workflow_dispatch:
 
 permissions:
@@ -50,6 +51,8 @@ jobs:
           cp patches/v0.1.280/smart-routing.html /tmp/openbox-app/panel/dist/smart-routing.html
           cp scripts/update.sh /tmp/openbox-app/update.sh
           cp scripts/uninstall.sh /tmp/openbox-app/uninstall.sh
+          cp scripts/smartalpha1-doctor.sh /tmp/openbox-app/smartalpha1-doctor.sh
+          chmod +x /tmp/openbox-app/smartalpha1-doctor.sh
           sed -i 's#OPENBOX_RELEASE_REPO:-liandu2024/Open-Box#OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box#' /tmp/openbox-app/update.sh
           python3 - <<'PY'
           import json
@@ -130,6 +133,8 @@ jobs:
           (cd release && sha256sum "$full" > "$full.sha256")
           (cd release && sha256sum "$app" > "$app.sha256")
           cp scripts/install.sh release/install.sh
+          cp scripts/smartalpha1-doctor.sh release/smartalpha1-doctor.sh
+          chmod +x release/smartalpha1-doctor.sh
           python3 - <<'PY'
           p='release/install.sh'
           s=open(p).read()
@@ -169,6 +174,7 @@ jobs:
         run: |
           set -euo pipefail
           sh -n release/install.sh
+          sh -n release/smartalpha1-doctor.sh
           grep -Fq 'REPO="${OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box}"' release/install.sh
           grep -Fq 'OPENBOX_INSTALL_VERSION="${OPENBOX_INSTALL_VERSION:-v0.1.280-smartalpha1}"' release/install.sh
           (
@@ -186,6 +192,7 @@ jobs:
           grep -Fq 'openbox-smart-routing-entry' /tmp/final-verify/panel/dist/index.html
           grep -Fq 'id="snell-add"' /tmp/final-verify/panel/dist/smart-routing.html
           test -f /tmp/final-verify/update.sh
+          test -x /tmp/final-verify/smartalpha1-doctor.sh
           grep -Fq 'v0.1.280-smartalpha1' /tmp/final-verify/meta.json
           grep -Fq 'OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box' /tmp/final-verify/update.sh
           grep -Fq "registerSmartRoutingRoutes" /tmp/final-verify/panel/server/index.mjs
