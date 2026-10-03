@@ -63,3 +63,25 @@ jobs:
         with:
           name: upstream-app-report
           path: upstream-app-report.txt
+
+
+      - name: Upload selected engine sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-engine-source
+          path: |
+            /tmp/openbox-app/panel/server/engine/node-model.mjs
+            /tmp/openbox-app/panel/server/engine/emit-outbound.mjs
+            /tmp/openbox-app/panel/server/engine/sharelink.mjs
+            /tmp/openbox-app/panel/server/engine/subscription.mjs
+            /tmp/openbox-app/panel/server/engine/clash.mjs
+            /tmp/openbox-app/panel/server/engine/singbox-in.mjs
+            /tmp/openbox-app/panel/server/engine/chain-proxy.mjs
+            /tmp/openbox-app/panel/server/engine/node-model.test.mjs
+            /tmp/openbox-app/panel/server/engine/emit-outbound.test.mjs
+            /tmp/openbox-app/panel/server/engine/sharelink.test.mjs
+            /tmp/openbox-app/panel/server/engine/subscription.test.mjs
+            /tmp/openbox-app/panel/server/engine/clash.test.mjs
+            /tmp/openbox-app/panel/server/engine/singbox-in.test.mjs
+            /tmp/openbox-app/panel/server/engine/chain-proxy.test.mjs
+          if-no-files-found: error
