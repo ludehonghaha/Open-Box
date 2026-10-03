@@ -87,10 +87,12 @@ export const smartRoutingOptions = (store) => {
   const usGroup = groupById.get(SMART_ROUTING_PRESET_IDS.usGroup)
   const hkGroup = groupById.get(SMART_ROUTING_PRESET_IDS.hkGroup)
   const lane = (id) => (Array.isArray(jpGroup?.lanes) ? jpGroup.lanes.find((x) => x && x.id === id) : null)
+  const presetIds = new Set(Object.values(SMART_ROUTING_PRESET_IDS))
+  const upstreamGroups = groups.filter((g) => g && !g.kind && !presetIds.has(g.id)).map((g) => g.name).filter(Boolean)
   return {
     nodes: nodes.map((n) => ({ name: n.tag, type: n.type, chain: n.chain === true })),
     snellNodes: nodes.filter((n) => n.type === 'snell' && n.chain !== true).map((n) => n.tag),
-    upstreams: [...new Set([...nodes.map((n) => n.tag), ...groups.map((g) => g && g.name).filter(Boolean)])],
+    upstreams: [...new Set([...nodes.filter((n) => n.chain !== true).map((n) => n.tag), ...upstreamGroups])],
     current: {
       primaryHop: clean(primary?.upstream),
       secondaryHop: clean(secondary?.upstream),
