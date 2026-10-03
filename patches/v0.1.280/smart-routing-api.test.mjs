@@ -40,6 +40,8 @@ test('options exposes selectable metadata without the saved JP credential and pl
   const savedStore = { ...store, getProfile: () => savedProfile }
   const opts = smartRoutingOptions(savedStore)
   assert.ok(opts.snellNodes.includes('NoBrand-Snell'))
+  assert.equal(opts.upstreams.includes('直连'), false)
+  assert.equal(opts.upstreams.includes('拒绝'), false)
   assert.equal(opts.current.primaryHop, 'NoBrand-Snell')
   assert.equal(opts.current.jpLandingConfigured, true)
   assert.equal(JSON.stringify(opts).includes('saved-secret'), false)
