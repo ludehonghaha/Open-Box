@@ -1,0 +1,93 @@
+name: Build Snell patched app
+
+on:
+  push:
+    branches:
+      - feature/smart-chain-routing
+    paths:
+      - patches/v0.1.280/**
+      - .github/workflows/build-snell-app.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download upstream Open-Box v0.1.280 app
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 \
+            -o /tmp/openbox-app.tar.gz \
+            https://github.com/liandu2024/Open-Box/releases/download/v0.1.280/open-box-v0.1.280-linux-arm64-app.tar.gz
+          mkdir -p /tmp/openbox-app
+          tar -xzf /tmp/openbox-app.tar.gz -C /tmp/openbox-app
+
+      - name: Apply Snell backend patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 patches/v0.1.280/apply_snell_patch.py /tmp/openbox-app
+          cp patches/v0.1.280/openbox-snell.test.mjs \
+            /tmp/openbox-app/panel/server/engine/openbox-snell.test.mjs
+
+      - name: Run backend regression and Snell tests
+        shell: bash
+        working-directory: /tmp/openbox-app/panel/server
+        run: |
+          set -euo pipefail
+          node --test \
+            engine/node-model.test.mjs \
+            engine/emit-outbound.test.mjs \
+            engine/sharelink.test.mjs \
+            engine/subscription.test.mjs \
+            engine/clash.test.mjs \
+            engine/singbox-in.test.mjs \
+            engine/chain-proxy.test.mjs \
+            engine/openbox-snell.test.mjs
+
+      - name: Validate emitted Snell outbound with sing-box 1.14.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/openbox-app/panel/server
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import { parseSurgeSnellLine } from './engine/sharelink.mjs'
+          import { emitOutbound } from './engine/emit-outbound.mjs'
+          const node = parseSurgeSnellLine('NB = snell, 203.0.113.10, 4904, psk = smoke-secret, version = 5')
+          const outbound = emitOutbound(node)
+          if (outbound.version !== 4) throw new Error('Snell v5 compatibility mapping did not emit version 4')
+          fs.writeFileSync('/tmp/snell-smoke.json', JSON.stringify({ outbounds: [outbound] }, null, 2))
+          NODE
+          curl -fL --retry 3 \
+            -o /tmp/sing-box.tar.gz \
+            https://github.com/SagerNet/sing-box/releases/download/v1.14.1/sing-box-1.14.1-linux-amd64.tar.gz
+          mkdir -p /tmp/singbox
+          tar -xzf /tmp/sing-box.tar.gz -C /tmp/singbox --strip-components=1
+          /tmp/singbox/sing-box check -c /tmp/snell-smoke.json
+          cat /tmp/snell-smoke.json
+
+      - name: Build patched ARM64 app package
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'base=v0.1.280' \
+            'patch=snell-t1' \
+            'singbox-v5-client-mapping=v4' \
+            > /tmp/openbox-app/OPENBOX_CUSTOM_BUILD
+          tar -czf "$GITHUB_WORKSPACE/open-box-v0.1.280-snellt1-linux-arm64-app.tar.gz" \
+            -C /tmp/openbox-app .
+
+      - name: Upload patched app
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-box-v0.1.280-snellt1-linux-arm64-app
+          path: open-box-v0.1.280-snellt1-linux-arm64-app.tar.gz
+          if-no-files-found: error
