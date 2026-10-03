@@ -1,0 +1,98 @@
+import express from 'express'
+import { buildConfig } from '../engine/config.mjs'
+import { chainNodes, parseChainNode } from '../engine/chain-proxy.mjs'
+import { buildSmartRoutingPreset } from '../engine/smart-routing-preset.mjs'
+import { appliedSummary } from './subscriptions.mjs'
+
+const clean = (v) => (typeof v === 'string' ? v.trim() : '')
+const list = (v) => [...new Set((Array.isArray(v) ? v : []).map(clean).filter(Boolean))]
+
+export const planSmartRouting = ({ store, input = {} }) => {
+  const profile = store.getProfile() || {}
+  const groups = store.getGroups() || []
+  const baseNodes = store.getNodes() || []
+  const existingChainNodes = chainNodes(profile)
+  const nodeTags = new Set([...baseNodes, ...existingChainNodes].map((n) => n && n.tag).filter(Boolean))
+  const upstreamTags = new Set([...nodeTags, ...groups.map((g) => g && g.name).filter(Boolean)])
+
+  const primaryHop = clean(input.primaryHop)
+  const secondaryHop = clean(input.secondaryHop)
+  const hkFallback = clean(input.hkFallback)
+  const usWestNodes = list(input.usWestNodes)
+  const jpLandingLink = clean(input.jpLandingLink)
+
+  if (!upstreamTags.has(primaryHop)) throw new Error(`沪日主入口不存在:「${primaryHop || '未选择'}」`)
+  if (secondaryHop && !upstreamTags.has(secondaryHop)) throw new Error(`沪日备用入口不存在:「${secondaryHop}」`)
+  if (hkFallback && !nodeTags.has(hkFallback)) throw new Error(`香港第二备用必须是真实节点:「${hkFallback}」`)
+  for (const tag of usWestNodes) if (!nodeTags.has(tag)) throw new Error(`美西节点不存在:「${tag}」`)
+  const landing = parseChainNode(jpLandingLink)
+  if (landing.error || !landing.node) throw new Error(`JP 落地节点无效:${landing.error || '无法解析'}`)
+
+  const preset = buildSmartRoutingPreset({
+    currentProfile: profile,
+    currentGroups: groups,
+    primaryHop,
+    secondaryHop,
+    hkFallback,
+    usWestNodes,
+    jpLandingLink,
+    names: input.names,
+  })
+  const nextProfile = { ...profile, ...preset.profilePatch }
+  // 用正式配置生成器干跑一遍:重复 tag、链路成环、失效组等问题都在保存前暴露。
+  const config = buildConfig({ nodes: baseNodes, userGroups: preset.groups, profile: nextProfile })
+  const byTag = new Map(config.outbounds.map((o) => [o.tag, o]))
+  const jp = byTag.get(preset.summary.ai)
+  const us = byTag.get(preset.summary.streaming)
+  if (!jp || !us) throw new Error('智能线路预设没有生成预期的沪日/美西策略组')
+
+  return {
+    ...preset,
+    preview: {
+      japan: { group: preset.summary.ai, members: jp.outbounds || [], default: jp.default || '' },
+      usWest: { group: preset.summary.streaming, members: us.outbounds || [], default: us.default || '' },
+      policies: {
+        AI: byTag.get('AI')?.default || '',
+        国外: byTag.get('国外')?.default || '',
+        Netflix: byTag.get('Netflix')?.default || '',
+        国内: byTag.get('国内')?.default || '',
+      },
+      landing: { type: landing.node.type, server: landing.node.server, port: landing.node.server_port },
+    },
+  }
+}
+
+const publicResult = (plan) => ({ summary: plan.summary, preview: plan.preview })
+
+export const registerSmartRoutingRoutes = (app, { store, applyNow = null } = {}) => {
+  const router = express.Router({ caseSensitive: true })
+  router.use(express.json({ limit: '1mb' }))
+
+  router.post('/preview', (req, res) => {
+    try { res.json({ ok: true, ...publicResult(planSmartRouting({ store, input: req.body || {} })) }) }
+    catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : String(error) }) }
+  })
+
+  router.post('/apply', async (req, res) => {
+    let plan
+    try { plan = planSmartRouting({ store, input: req.body || {} }) }
+    catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : String(error) }); return }
+
+    try {
+      store.setProfile(plan.profilePatch)
+      store.setGroups(plan.groups)
+    } catch (error) {
+      res.status(500).json({ error: `智能线路保存失败:${error instanceof Error ? error.message : String(error)}` })
+      return
+    }
+
+    let applied
+    if (typeof applyNow === 'function') {
+      try { applied = appliedSummary(await applyNow()) }
+      catch (error) { applied = { ok: false, changed: 0, reason: error instanceof Error ? error.message : String(error) } }
+    }
+    res.json({ ok: true, ...publicResult(plan), profile: store.getProfile(), groups: store.getGroups(), ...(applied ? { applied } : {}) })
+  })
+
+  app.use('/api/openbox/smart-routing', router)
+}
