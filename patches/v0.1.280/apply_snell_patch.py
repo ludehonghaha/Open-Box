@@ -53,19 +53,24 @@ def patch_emit(s):
 
 def patch_clash(s):
     anchor = "  vmess: (p) => {\n"
-    block = """  snell: (p) => ({
-    type: 'snell',
-    fields: {
-      version: Number.parseInt(p.version ?? 5, 10) || 5,
-      psk: p.psk,
-      ...(p.userkey ? { userkey: p.userkey } : {}),
-      ...(p.reuse === true ? { reuse: true } : {}),
-      ...(p.network === 'tcp' || p.network === 'udp' ? { network: p.network } : {}),
-      ...((p.obfs || p['obfs-mode']) ? { obfs_mode: String(p.obfs || p['obfs-mode']) } : {}),
-      ...(p['obfs-host'] ? { obfs_host: String(p['obfs-host']) } : {}),
-      ...(p.mode ? { mode: String(p.mode) } : {}),
-    },
-  }),
+    block = """  snell: (p) => {
+    if (!p.psk) throw new Error('snell requires psk')
+    const version = Number.parseInt(p.version ?? 5, 10) || 5
+    if (![4, 5, 6].includes(version)) throw new Error('snell version must be 4, 5, or 6')
+    return {
+      type: 'snell',
+      fields: {
+        version,
+        psk: p.psk,
+        ...(p.userkey ? { userkey: p.userkey } : {}),
+        ...(p.reuse === true ? { reuse: true } : {}),
+        ...(p.network === 'tcp' || p.network === 'udp' ? { network: p.network } : {}),
+        ...((p.obfs || p['obfs-mode']) ? { obfs_mode: String(p.obfs || p['obfs-mode']) } : {}),
+        ...(p['obfs-host'] ? { obfs_host: String(p['obfs-host']) } : {}),
+        ...(p.mode ? { mode: String(p.mode) } : {}),
+      },
+    }
+  },
 """
     s = replace_once(s, anchor, block + anchor, 'clash snell mapper anchor')
     old = "const STRING_FIELDS = ['username', 'password', 'uuid', 'cipher', 'obfs-password', 'auth-str', 'auth_str', 'private-key', 'public-key', 'preshared-key', 'servername', 'sni', 'flow']"
@@ -194,6 +199,27 @@ def patch_node_model_test(s):
     new = "  assert.deepEqual([...NODE_TYPES].sort(), ['anytls','http','hysteria2','shadowsocks','snell','socks','trojan','tuic','vless','vmess','wireguard'])"
     return replace_once(s, old, new, 'node model test expectation')
 
+def patch_clash_test(s):
+    old = """  - name: "Legacy"
+    type: snell
+    server: x.com
+    port: 1234
+"""
+    new = """  - name: "Legacy"
+    type: snell
+    server: x.com
+    port: 1234
+    psk: legacy-secret
+    version: 5
+"""
+    s = replace_once(s, old, new, 'clash test snell fixture')
+    old_assert = "  assert.deepEqual(skipped, [{ name: 'Legacy', type: 'snell', reason: 'unsupported-type' }])"
+    new_assert = """  assert.equal(byName['Legacy'].type, 'snell')
+  assert.equal(byName['Legacy'].fields.psk, 'legacy-secret')
+  assert.equal(byName['Legacy'].fields.version, 5)
+  assert.deepEqual(skipped, [])"""
+    return replace_once(s, old_assert, new_assert, 'clash test snell expectation')
+
 for name, fn in [
     ('node-model.mjs', patch_node_model),
     ('emit-outbound.mjs', patch_emit),
@@ -202,6 +228,7 @@ for name, fn in [
     ('subscription.mjs', patch_subscription),
     ('chain-proxy.mjs', patch_chain),
     ('node-model.test.mjs', patch_node_model_test),
+    ('clash.test.mjs', patch_clash_test),
 ]:
     edit(name, fn)
 
