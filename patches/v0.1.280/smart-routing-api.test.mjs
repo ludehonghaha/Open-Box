@@ -29,6 +29,7 @@ test('preview plan resolves selected nodes and never returns landing credentials
 
 test('preview rejects missing selections before anything can be saved', () => {
   assert.throws(() => planSmartRouting({ store, input: { primaryHop: '不存在', usWestNodes: ['US-West'], jpLandingLink: 'anytls://pw@198.51.100.10:443#JP' } }), /主入口不存在/)
+  assert.throws(() => planSmartRouting({ store, input: { primaryHop: 'Gen2', usWestNodes: ['US-West'], jpLandingLink: 'anytls://pw@198.51.100.10:443#JP' } }), /主入口必须是 Snell/)
   assert.throws(() => planSmartRouting({ store, input: { primaryHop: 'NoBrand-Snell', usWestNodes: ['不存在'], jpLandingLink: 'anytls://pw@198.51.100.10:443#JP' } }), /美西节点不存在/)
   assert.throws(() => planSmartRouting({ store, input: { primaryHop: 'NoBrand-Snell', usWestNodes: ['US-West'], jpLandingLink: 'garbage' } }), /JP 落地节点无效/)
 })
