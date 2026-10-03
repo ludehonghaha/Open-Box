@@ -12,7 +12,9 @@ export const planSmartRouting = ({ store, input = {} }) => {
   const groups = store.getGroups() || []
   const baseNodes = store.getNodes() || []
   const existingChainNodes = chainNodes(profile)
-  const nodeTags = new Set([...baseNodes, ...existingChainNodes].map((n) => n && n.tag).filter(Boolean))
+  const allNodes = [...baseNodes, ...existingChainNodes]
+  const nodeTags = new Set(allNodes.map((n) => n && n.tag).filter(Boolean))
+  const nodeByTag = new Map(allNodes.map((n) => [n && n.tag, n]).filter(([tag]) => Boolean(tag)))
   const upstreamTags = new Set([...nodeTags, ...groups.map((g) => g && g.name).filter(Boolean)])
 
   const primaryHop = clean(input.primaryHop)
@@ -21,7 +23,8 @@ export const planSmartRouting = ({ store, input = {} }) => {
   const usWestNodes = list(input.usWestNodes)
   const jpLandingLink = clean(input.jpLandingLink)
 
-  if (!upstreamTags.has(primaryHop)) throw new Error(`沪日主入口不存在:「${primaryHop || '未选择'}」`)
+  if (!nodeTags.has(primaryHop)) throw new Error(`沪日主入口不存在:「${primaryHop || '未选择'}」`)
+  if (nodeByTag.get(primaryHop)?.type !== 'snell') throw new Error(`沪日主入口必须是 Snell 节点:「${primaryHop}」`)
   if (secondaryHop && !upstreamTags.has(secondaryHop)) throw new Error(`沪日备用入口不存在:「${secondaryHop}」`)
   if (hkFallback && !nodeTags.has(hkFallback)) throw new Error(`香港第二备用必须是真实节点:「${hkFallback}」`)
   for (const tag of usWestNodes) if (!nodeTags.has(tag)) throw new Error(`美西节点不存在:「${tag}」`)
@@ -45,6 +48,14 @@ export const planSmartRouting = ({ store, input = {} }) => {
   const jp = byTag.get(preset.summary.ai)
   const us = byTag.get(preset.summary.streaming)
   if (!jp || !us) throw new Error('智能线路预设没有生成预期的沪日/美西策略组')
+  const primaryChain = byTag.get(preset.summary.japanPath[1])
+  if (!primaryChain || primaryChain.detour !== primaryHop || jp.default !== preset.summary.japanPath[1]) {
+    throw new Error('沪日主链生成失败:预期 Snell 第一跳 → JP 落地')
+  }
+  if (secondaryHop) {
+    const secondaryChain = byTag.get(preset.summary.japanBackup[1])
+    if (!secondaryChain || secondaryChain.detour !== secondaryHop) throw new Error('沪日备用链生成失败')
+  }
 
   return {
     ...preset,
