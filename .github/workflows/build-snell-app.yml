@@ -35,6 +35,8 @@ jobs:
           python3 patches/v0.1.280/apply_snell_patch.py /tmp/openbox-app
           cp patches/v0.1.280/openbox-snell.test.mjs \
             /tmp/openbox-app/panel/server/engine/openbox-snell.test.mjs
+          cp patches/v0.1.280/openbox-personal-topology.test.mjs \
+            /tmp/openbox-app/panel/server/engine/openbox-personal-topology.test.mjs
 
       - name: Run backend regression and Snell tests
         shell: bash
@@ -49,7 +51,8 @@ jobs:
             engine/clash.test.mjs \
             engine/singbox-in.test.mjs \
             engine/chain-proxy.test.mjs \
-            engine/openbox-snell.test.mjs
+            engine/openbox-snell.test.mjs \
+            engine/openbox-personal-topology.test.mjs
 
       - name: Validate emitted Snell outbound with sing-box 1.14.1
         shell: bash
