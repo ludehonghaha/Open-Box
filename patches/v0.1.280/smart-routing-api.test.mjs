@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createNode } from '../engine/node-model.mjs'
 import { builtinDefaults } from '../engine/user-groups.mjs'
-import { planSmartRouting } from './smart-routing.mjs'
+import { planSmartRouting, smartRoutingOptions } from './smart-routing.mjs'
 
 const node = (tag, server, type = 'shadowsocks', fields = { method: 'aes-256-gcm', password: 'pw' }) => createNode({ tag, type, server, server_port: type === 'snell' ? 4904 : 8388, fields, source: 'clash' })
 const nodes = [
@@ -32,4 +32,17 @@ test('preview rejects missing selections before anything can be saved', () => {
   assert.throws(() => planSmartRouting({ store, input: { primaryHop: 'Gen2', usWestNodes: ['US-West'], jpLandingLink: 'anytls://pw@198.51.100.10:443#JP' } }), /主入口必须是 Snell/)
   assert.throws(() => planSmartRouting({ store, input: { primaryHop: 'NoBrand-Snell', usWestNodes: ['不存在'], jpLandingLink: 'anytls://pw@198.51.100.10:443#JP' } }), /美西节点不存在/)
   assert.throws(() => planSmartRouting({ store, input: { primaryHop: 'NoBrand-Snell', usWestNodes: ['US-West'], jpLandingLink: 'garbage' } }), /JP 落地节点无效/)
+})
+
+
+test('options exposes selectable metadata without the saved JP credential and plan can reuse saved landing link', () => {
+  const savedProfile = { ...store.getProfile(), chainProxies: [{ id: 'smart-jp-primary', enabled: true, name: '沪日 · Snell → JP', link: 'anytls://saved-secret@198.51.100.20:443#JP', upstream: 'NoBrand-Snell' }] }
+  const savedStore = { ...store, getProfile: () => savedProfile }
+  const opts = smartRoutingOptions(savedStore)
+  assert.ok(opts.snellNodes.includes('NoBrand-Snell'))
+  assert.equal(opts.current.primaryHop, 'NoBrand-Snell')
+  assert.equal(opts.current.jpLandingConfigured, true)
+  assert.equal(JSON.stringify(opts).includes('saved-secret'), false)
+  const plan = planSmartRouting({ store: savedStore, input: { primaryHop: 'NoBrand-Snell', usWestNodes: ['US-West'] } })
+  assert.equal(plan.preview.landing.server, '198.51.100.20')
 })
