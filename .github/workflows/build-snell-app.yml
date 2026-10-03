@@ -47,6 +47,18 @@ jobs:
             /tmp/openbox-app/panel/server/api/smart-routing.test.mjs
           cp patches/v0.1.280/smart-routing.html \
             /tmp/openbox-app/panel/dist/smart-routing.html
+          cp scripts/update.sh /tmp/openbox-app/update.sh
+          cp scripts/uninstall.sh /tmp/openbox-app/uninstall.sh
+          sed -i 's#OPENBOX_RELEASE_REPO:-liandu2024/Open-Box#OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box#' /tmp/openbox-app/update.sh
+          sed -i 's#OPENBOX_SCRIPT_REPO:-\$REPO#OPENBOX_SCRIPT_REPO:-\$REPO#' /tmp/openbox-app/update.sh
+          python3 - <<'PY'
+          import json
+          p='/tmp/openbox-app/meta.json'
+          data=json.load(open(p))
+          data['version']='v0.1.280-smartalpha1'
+          json.dump(data, open(p,'w'), ensure_ascii=False, indent=2)
+          open(p,'a').write('\n')
+          PY
 
       - name: Run backend regression and Snell tests
         shell: bash
