@@ -141,6 +141,30 @@ jobs:
           ls -lh release
           sha256sum release/*.tar.gz
 
+      - name: Verify final release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n release/install.sh
+          grep -Fq 'REPO="${OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box}"' release/install.sh
+          grep -Fq 'OPENBOX_INSTALL_VERSION="${OPENBOX_INSTALL_VERSION:-v0.1.280-smartalpha1}"' release/install.sh
+          (
+            cd release
+            sha256sum -c "open-box-${TAG}-linux-arm64.tar.gz.sha256"
+            sha256sum -c "open-box-${TAG}-linux-arm64-app.tar.gz.sha256"
+          )
+          rm -rf /tmp/final-verify
+          mkdir -p /tmp/final-verify
+          tar -xzf "release/open-box-${TAG}-linux-arm64.tar.gz" -C /tmp/final-verify
+          test -x /tmp/final-verify/node/bin/node
+          test -f /tmp/final-verify/panel/server/api/smart-routing.mjs
+          test -f /tmp/final-verify/panel/server/engine/smart-routing-preset.mjs
+          test -f /tmp/final-verify/panel/dist/smart-routing.html
+          test -f /tmp/final-verify/update.sh
+          grep -Fq 'v0.1.280-smartalpha1' /tmp/final-verify/meta.json
+          grep -Fq 'OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box' /tmp/final-verify/update.sh
+          grep -Fq "registerSmartRoutingRoutes" /tmp/final-verify/panel/server/index.mjs
+
       - name: Publish prerelease
         shell: bash
         env:
