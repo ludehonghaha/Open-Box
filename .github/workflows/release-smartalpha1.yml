@@ -6,6 +6,10 @@ on:
       - feature/smart-chain-routing
     paths:
       - .github/workflows/release-smartalpha1.yml
+      - patches/v0.1.280/**
+      - scripts/install.sh
+      - scripts/update.sh
+      - scripts/uninstall.sh
   workflow_dispatch:
 
 permissions:
@@ -56,6 +60,23 @@ jobs:
           open(p,'a').write('\n')
           PY
           printf '%s\n'             'base=v0.1.280'             'patch=smart-routing-alpha1'             'singbox-v5-client-mapping=v4'             > /tmp/openbox-app/OPENBOX_CUSTOM_BUILD
+
+      - name: Validate smart routing static UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'openbox-smart-routing-entry' /tmp/openbox-app/panel/dist/index.html
+          grep -Fq 'id="snell-add"' /tmp/openbox-app/panel/dist/smart-routing.html
+          grep -Fq '/api/openbox/subscriptions' /tmp/openbox-app/panel/dist/smart-routing.html
+          python3 - <<'PY'
+          import re
+          s=open('/tmp/openbox-app/panel/dist/smart-routing.html').read()
+          scripts=re.findall(r'<script>(.*?)</script>', s, re.S)
+          if len(scripts) != 1:
+              raise SystemExit(f'expected one inline script, got {len(scripts)}')
+          open('/tmp/smart-routing-ui.js','w').write(scripts[0])
+          PY
+          node --check /tmp/smart-routing-ui.js
 
       - name: Run backend regression and smart routing tests
         shell: bash
@@ -135,6 +156,8 @@ jobs:
           - China -> DIRECT
           - /api/openbox/smart-routing/options|preview|apply
           - /smart-routing.html standalone dark UI
+          - visible Smart Routing entry on the main panel
+          - direct Surge Snell / snell:// import from Smart Routing UI
 
           This is a prerelease for N1 validation. Do not use automatic update during alpha testing.
           EOF
@@ -160,6 +183,8 @@ jobs:
           test -f /tmp/final-verify/panel/server/api/smart-routing.mjs
           test -f /tmp/final-verify/panel/server/engine/smart-routing-preset.mjs
           test -f /tmp/final-verify/panel/dist/smart-routing.html
+          grep -Fq 'openbox-smart-routing-entry' /tmp/final-verify/panel/dist/index.html
+          grep -Fq 'id="snell-add"' /tmp/final-verify/panel/dist/smart-routing.html
           test -f /tmp/final-verify/update.sh
           grep -Fq 'v0.1.280-smartalpha1' /tmp/final-verify/meta.json
           grep -Fq 'OPENBOX_RELEASE_REPO:-ludehonghaha/Open-Box' /tmp/final-verify/update.sh
