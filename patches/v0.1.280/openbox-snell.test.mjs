@@ -6,7 +6,7 @@ import { parseShareLink, parseSurgeSnellLine } from './sharelink.mjs'
 import { parseSubscription } from './subscription.mjs'
 import { parseClashProxies } from './clash.mjs'
 import { parseSingboxOutbounds } from './singbox-in.mjs'
-import { parseChainNode, chainNodes } from './chain-proxy.mjs'
+import { parseChainNode, resolveChainNodes } from './chain-proxy.mjs'
 
 test('Snell is a first-class node type', () => {
   assert.equal(NODE_TYPES.includes('snell'), true)
@@ -62,15 +62,22 @@ test('Clash-like Snell and native sing-box Snell JSON import', () => {
   assert.equal(emitOutbound(native.nodes[0]).version, 4)
 })
 
-test('Snell can be a real detour chain node', () => {
-  const line = '沪日-Snell = snell, 203.0.113.14, 4904, psk = chain-secret, version = 5'
-  const parsed = parseChainNode(line)
-  assert.equal(parsed.node.type, 'snell')
-  const [chain] = chainNodes({ chainProxies: [{ id: 'c1', enabled: true, name: '沪日链路', link: line, upstream: 'JP落地' }] })
-  const out = emitOutbound(chain)
-  assert.equal(out.type, 'snell')
-  assert.equal(out.version, 4)
-  assert.equal(out.detour, 'JP落地')
+test('Snell is the first hop and JP landing is the detoured second hop', () => {
+  const snell = parseSurgeSnellLine('NoBrand-Snell = snell, 203.0.113.14, 4904, psk = chain-secret, version = 5')
+  const jp = 'anytls://jp-secret@jp.example.com:443?sni=jp.example.com#JP落地'
+  const resolved = resolveChainNodes({
+    nodes: [snell],
+    userGroups: [],
+    chainProxies: [{ id: 'c1', enabled: true, name: '沪日链路', link: jp, upstream: 'NoBrand-Snell' }],
+  })
+  assert.equal(resolved.skipped.length, 0)
+  assert.equal(resolved.nodes.length, 1)
+  const out = emitOutbound(resolved.nodes[0])
+  assert.equal(out.type, 'anytls')
+  assert.equal(out.server, 'jp.example.com')
+  assert.equal(out.detour, 'NoBrand-Snell')
+  assert.equal(emitOutbound(snell).type, 'snell')
+  assert.equal(emitOutbound(snell).version, 4)
 })
 
 test('Snell v6 remains v6 and keeps shaping mode', () => {
